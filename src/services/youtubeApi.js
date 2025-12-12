@@ -28,6 +28,16 @@ function parseDuration(duration) {
 }
 
 /**
+ * 텍스트에 한글이 포함되어 있는지 확인합니다
+ */
+function containsKorean(text) {
+  if (!text) return false
+  // 한글 유니코드 범위: 한글 자모 (\u3131-\u318E), 한글 완성형 (\uAC00-\uD7A3)
+  const koreanRegex = /[\u3131-\u318E\uAC00-\uD7A3]/
+  return koreanRegex.test(text)
+}
+
+/**
  * 특정 지역의 인기 동영상에서 채널별 조회수를 가져옵니다 (videoType 필터링 포함)
  */
 async function fetchChannelViewsFromRegion(regionCode, maxResults = 200, videoType = 'all') {
@@ -304,9 +314,10 @@ export async function fetchYouTubeRanking(regionCode = 'KR', videoType = 'all', 
  * @param {string} order - 정렬 순서 (relevance, date, rating, title, viewCount, videoCount)
  * @param {string} videoDuration - 영상 길이 (any, short, medium, long)
  * @param {string} publishedAfter - 게시일 이후 (ISO 8601 형식)
+ * @param {string} regionCode - 지역 코드 (예: KR, US, JP)
  * @returns {Promise<Array>} 영상 데이터 배열
  */
-export async function deepSearchVideos(query, order = 'relevance', videoDuration = 'any', publishedAfter = null) {
+export async function deepSearchVideos(query, order = 'relevance', videoDuration = 'any', publishedAfter = null, regionCode = 'KR') {
   checkApiKey()
   
   if (!query || query.trim() === '') {
@@ -323,8 +334,16 @@ export async function deepSearchVideos(query, order = 'relevance', videoDuration
   
   // 30초 이하 필터링 여부 확인
   const isUnder30Seconds = videoDuration === 'short30'
+  
+  // 지역 코드에 따른 언어 설정
+  const languageMap = {
+    'KR': 'ko',
+    'US': 'en',
+    'JP': 'ja',
+  }
+  const relevanceLanguage = languageMap[regionCode] || 'ko'
 
-  console.log('Deep Search 시작...', { query, order, videoDuration, publishedAfter, isUnder30Seconds })
+  console.log('Deep Search 시작...', { query, order, videoDuration, publishedAfter, isUnder30Seconds, regionCode })
 
   while (allVideos.length < MAX_RESULTS && pageCount < MAX_PAGES) {
     const params = new URLSearchParams({
@@ -333,8 +352,8 @@ export async function deepSearchVideos(query, order = 'relevance', videoDuration
       type: 'video',
       maxResults: RESULTS_PER_PAGE.toString(),
       order: order,
-      relevanceLanguage: 'ko', // 대한민국 콘텐츠 우선
-      regionCode: 'KR', // 대한민국 지역 코드
+      relevanceLanguage: relevanceLanguage, // 지역에 따른 언어 설정
+      regionCode: regionCode, // 선택된 지역 코드
       key: API_KEY
     })
 
@@ -385,6 +404,8 @@ export async function deepSearchVideos(query, order = 'relevance', videoDuration
 
           // 채널 정보 가져오기
           let channelInfo = null
+          let isKoreanContent = false
+          
           try {
             const channelResponse = await fetch(
               `${API_BASE_URL}/channels?part=snippet,statistics&id=${channelId}&key=${API_KEY}`
@@ -393,15 +414,57 @@ export async function deepSearchVideos(query, order = 'relevance', videoDuration
             if (channelData.items && channelData.items.length > 0) {
               channelInfo = channelData.items[0]
               
-              // 대한민국 채널만 필터링 (country 정보가 있는 경우)
+              // 대한민국 필터링: country가 KR이거나 한국어 제목인 경우 포함
               const channelCountry = channelInfo.snippet?.country
-              if (channelCountry && channelCountry !== 'KR') {
-                // 한국이 아닌 채널은 제외
-                continue
+              const videoTitle = snippet.title || ''
+              const videoDescription = snippet.description || ''
+              
+              if (regionCode === 'KR') {
+                // 대한민국 필터링: country가 KR이거나 제목/설명에 한글이 포함된 경우
+                const hasKoreanInTitle = containsKorean(videoTitle)
+                const hasKoreanInDescription = containsKorean(videoDescription)
+                const isKoreanCountry = channelCountry === 'KR'
+                
+                if (isKoreanCountry || hasKoreanInTitle || hasKoreanInDescription) {
+                  isKoreanContent = true
+                } else {
+                  // country도 KR이 아니고 한글도 없으면 제외
+                  continue
+                }
+              } else {
+                // 다른 지역의 경우: country가 선택된 지역과 일치해야 함
+                if (channelCountry && channelCountry !== regionCode) {
+                  continue
+                }
+                // country 정보가 없는 경우는 포함 (다른 지역은 완화)
+              }
+            } else {
+              // 채널 정보를 가져올 수 없으면 제목으로만 판단
+              if (regionCode === 'KR') {
+                const videoTitle = snippet.title || ''
+                const videoDescription = snippet.description || ''
+                const hasKorean = containsKorean(videoTitle) || containsKorean(videoDescription)
+                if (!hasKorean) {
+                  continue
+                }
+                isKoreanContent = true
+              } else {
+                // 다른 지역이고 채널 정보가 없으면 제외하지 않음 (완화)
               }
             }
           } catch (err) {
             console.warn('채널 정보 가져오기 실패:', err)
+            // 채널 정보를 가져올 수 없으면 제목으로만 판단
+            if (regionCode === 'KR') {
+              const videoTitle = snippet.title || ''
+              const videoDescription = snippet.description || ''
+              const hasKorean = containsKorean(videoTitle) || containsKorean(videoDescription)
+              if (!hasKorean) {
+                continue
+              }
+              isKoreanContent = true
+            }
+            // 다른 지역이고 채널 정보를 가져올 수 없으면 포함 (완화)
           }
 
           // 30초 이하 필터링 (contentDetails.duration 사용)

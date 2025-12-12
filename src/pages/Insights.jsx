@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { deepSearchVideos } from '../services/youtubeApi'
+import { useRegion } from '../contexts/RegionContext'
 
 function Insights() {
+  const { selectedRegion } = useRegion()
   const [searchQuery, setSearchQuery] = useState('')
   const [order, setOrder] = useState('relevance')
   const [videoDuration, setVideoDuration] = useState('any')
@@ -28,7 +30,8 @@ function Insights() {
         searchQuery,
         order,
         videoDuration,
-        publishedAfter || null
+        publishedAfter || null,
+        selectedRegion || 'KR'
       )
       
       // 검색 결과를 정렬 기준에 따라 정렬

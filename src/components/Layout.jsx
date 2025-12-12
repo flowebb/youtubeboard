@@ -182,7 +182,7 @@ function Header() {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M3 3V21H21V3H3ZM5 5H19V19H5V5ZM7 7V17H9V7H7ZM11 7V17H13V7H11ZM15 7V17H17V7H15Z" fill="currentColor"/>
           </svg>
-          <span>TrendBoard</span>
+          <span>LineBoard</span>
         </div>
       </div>
       <div style={{
