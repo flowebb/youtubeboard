@@ -1,6 +1,335 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { deepSearchVideos } from '../services/youtubeApi'
 import { useRegion } from '../contexts/RegionContext'
+
+// 달력 컴포넌트
+function DatePicker({ value, onChange, placeholder }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (value) {
+      const date = new Date(value)
+      return new Date(date.getFullYear(), date.getMonth(), 1)
+    }
+    return new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  })
+  const calendarRef = useRef(null)
+
+  const daysOfWeek = ['일', '월', '화', '수', '목', '금', '토']
+  
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+
+  const formatDisplayDate = (dateString) => {
+    if (!dateString) return placeholder || '날짜 선택'
+    const date = new Date(dateString)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  }
+
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay()
+    
+    const days = []
+    
+    // 이전 달의 마지막 날들
+    const prevMonth = new Date(year, month, 0)
+    const prevMonthDays = prevMonth.getDate()
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      days.push({
+        date: new Date(year, month - 1, prevMonthDays - i),
+        isCurrentMonth: false
+      })
+    }
+    
+    // 현재 달의 날들
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true
+      })
+    }
+    
+    // 다음 달의 첫 날들 (캘린더를 채우기 위해)
+    const remainingDays = 42 - days.length
+    for (let i = 1; i <= remainingDays; i++) {
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false
+      })
+    }
+    
+    return days
+  }
+
+  const handleDateClick = (date) => {
+    onChange(formatDate(date))
+    setIsOpen(false)
+  }
+
+  const handleTodayClick = () => {
+    const today = new Date()
+    onChange(formatDate(today))
+    setIsOpen(false)
+  }
+
+  const handleDeleteClick = () => {
+    onChange('')
+    setIsOpen(false)
+  }
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  }
+
+  const selectedDate = value ? new Date(value) : null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isOpen])
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }} ref={calendarRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          padding: '12px',
+          backgroundColor: '#0f0f0f',
+          border: '2px solid #2d3748',
+          borderRadius: '8px',
+          color: '#e0e0e0',
+          fontSize: '14px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>{formatDisplayDate(value)}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 2V6M16 2V6M3 10H21M5 4H19C20.1046 4 21 4.89543 21 6V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V6C3 4.89543 3.89543 4 5 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          marginTop: '8px',
+          backgroundColor: '#1a2332',
+          border: '2px solid #2d3748',
+          borderRadius: '12px',
+          padding: '20px',
+          zIndex: 1000,
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+          minWidth: '320px',
+        }}>
+          {/* 헤더 */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+          }}>
+            <button
+              onClick={handlePrevMonth}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#e0e0e0',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '6px',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d3748'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <div style={{
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#ffffff',
+            }}>
+              {currentMonth.getFullYear()}년 {currentMonth.getMonth() + 1}월
+            </div>
+            <button
+              onClick={handleNextMonth}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#e0e0e0',
+                cursor: 'pointer',
+                padding: '8px',
+                borderRadius: '6px',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d3748'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M9 18L15 12L9 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* 요일 헤더 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: '4px',
+            marginBottom: '8px',
+          }}>
+            {daysOfWeek.map((day, index) => (
+              <div
+                key={day}
+                style={{
+                  textAlign: 'center',
+                  padding: '8px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: index === 0 ? '#ff6b6b' : index === 6 ? '#4ecdc4' : '#b0b0b0',
+                }}
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* 날짜 그리드 */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: '4px',
+          }}>
+            {getDaysInMonth(currentMonth).map((dayObj, index) => {
+              const dayDate = dayObj.date
+              const dayStr = formatDate(dayDate)
+              const isSelected = selectedDate && formatDate(selectedDate) === dayStr
+              const isToday = formatDate(today) === dayStr
+              
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleDateClick(dayDate)}
+                  style={{
+                    padding: '10px',
+                    background: isSelected 
+                      ? '#3182ce' 
+                      : isToday 
+                        ? '#2d3748' 
+                        : 'transparent',
+                    border: isSelected 
+                      ? '2px solid #3182ce' 
+                      : isToday 
+                        ? '2px solid #4ecdc4' 
+                        : '2px solid transparent',
+                    borderRadius: '6px',
+                    color: dayObj.isCurrentMonth 
+                      ? (isSelected ? '#ffffff' : '#e0e0e0')
+                      : '#4a5568',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    fontWeight: isSelected || isToday ? '600' : '400',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.target.style.backgroundColor = '#2d3748'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.target.style.backgroundColor = 'transparent'
+                    }
+                  }}
+                >
+                  {dayDate.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 하단 버튼 */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: '20px',
+            gap: '10px',
+          }}>
+            <button
+              onClick={handleDeleteClick}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: '#2d3748',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#e0e0e0',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#4a5568'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#2d3748'}
+            >
+              삭제
+            </button>
+            <button
+              onClick={handleTodayClick}
+              style={{
+                flex: 1,
+                padding: '10px',
+                backgroundColor: '#3182ce',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#ffffff',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2c5aa0'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#3182ce'}
+            >
+              오늘
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Insights() {
   const { selectedRegion } = useRegion()
@@ -250,19 +579,10 @@ function Insights() {
               }}>
                 게시일 (이후)
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={publishedAfter}
-                onChange={(e) => setPublishedAfter(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  backgroundColor: '#0f0f0f',
-                  border: '2px solid #2d3748',
-                  borderRadius: '8px',
-                  color: '#e0e0e0',
-                  fontSize: '14px',
-                }}
+                onChange={setPublishedAfter}
+                placeholder="날짜 선택"
               />
             </div>
           </div>
