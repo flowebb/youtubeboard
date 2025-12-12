@@ -93,6 +93,32 @@ function Sidebar({ currentPath }) {
         >
           인사이트
         </Link>
+        <Link 
+          to="/example" 
+          style={{
+            padding: '12px 16px',
+            color: currentPath === '/example' ? '#ffffff' : '#a0aec0',
+            textDecoration: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            backgroundColor: currentPath === '/example' ? '#3182ce' : 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            if (currentPath !== '/example') {
+              e.target.style.backgroundColor = '#2d3748'
+              e.target.style.color = '#ffffff'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (currentPath !== '/example') {
+              e.target.style.backgroundColor = 'transparent'
+              e.target.style.color = '#a0aec0'
+            }
+          }}
+        >
+          예시
+        </Link>
       </div>
       <div style={{
         display: 'flex',
